@@ -1,86 +1,105 @@
-# Rock-Paper-Scissors Backend
+# Rock Paper Scissors API
 
-## Project Purpose
-This is a Spring Boot REST API for a Rock-Paper-Scissors game. It provides endpoints to play a round, fetch game history, retrieve game statistics, and reset the game state.
+Spring Boot REST API for a single-player Rock Paper Scissors game. The API generates the computer's move, evaluates the round, stores the result, exposes the complete game history, calculates aggregate statistics, and supports resetting the session.
 
-## Technology Stack
-* Java 17
-* Spring Boot 4.1.0
-* Spring Web
-* Spring Data JPA
-* H2 Database
-* Jakarta Bean Validation
-* Maven
+The companion Angular application is available in [`rav3n6/rps-ui`](https://github.com/rav3n6/rps-ui).
+
+## Features
+
+- Play Rock, Paper, or Scissors against a randomly generated computer move
+- Persist completed rounds in a file-based H2 database
+- Return game history in reverse chronological order
+- Calculate wins, losses, draws, total rounds, and player win rate
+- Clear all saved rounds through a reset endpoint
+- Validate missing or invalid moves and return structured `400 Bad Request` responses
+- Allow local requests from the Angular development server at `http://localhost:4200`
+
+## Technology stack
+
+- Java 17
+- Spring Boot 4.1.0
+- Spring Web MVC
+- Spring Data JPA
+- Jakarta Bean Validation
+- H2 Database
+- Lombok
+- Maven Wrapper
+- JUnit 5 and Mockito
 
 ## Prerequisites
-* Java 17+
-* Maven 3.8+ (or use the provided Maven wrapper)
 
-## How to Run the Application
-1. Clone the repository.
-2. Navigate to the project root.
-3. Run the application using Maven:
-   ```bash
-   ./mvnw spring-boot:run
-   ```
-   The API will be available at `http://localhost:8080`.
+- JDK 17 or later
 
-## How to Run Tests
-Execute the automated test suite using:
+A separate Maven installation is not required because the repository includes the Maven Wrapper.
+
+## Run locally
+
+Clone the repository and enter its directory:
+
 ```bash
-./mvnw test
+git clone https://github.com/rav3n6/rps-bknd.git
+cd rps-bknd
 ```
 
-## Database Details
-* **Development Database:** Uses a file-based H2 database to persist game data across application restarts. The database files are stored in the `./data` directory (excluded via `.gitignore`).
-* **Test Database:** Uses an isolated, in-memory H2 database (`jdbc:h2:mem:rpstestdb`) to ensure tests do not affect real game data.
-* **H2 Console URL:** `http://localhost:8080/h2-console`
-* **H2 JDBC URL (Local Dev):** `jdbc:h2:file:./data/rpsdb`
-* **Username:** `sa`
-* **Password:** (blank)
+Start the application on macOS or Linux:
 
-## Architecture Decisions
-* **Layered Architecture:** The application separates routing/controllers, business logic/services, data access/repositories, and models/entities.
-* **Constructor Injection:** Ensures dependency immutability and testability.
-* **Random Move Generation:** Extracted to an interface (`ComputerMoveGenerator`) to allow predictable moves during unit testing.
-* **Game Rules Logic:** Segregated into a dedicated `GameRules` component to decouple complex game evaluation logic from the service layer.
-* **CORS:** Configured centralized in `WebConfig` to permit interactions from the default Angular host `http://localhost:4200`.
+```bash
+./mvnw spring-boot:run
+```
 
-## API Endpoints
+On Windows:
 
-| Method | Endpoint          | Description                                  |
-|--------|-------------------|----------------------------------------------|
-| POST   | `/api/rounds`     | Play a round against the computer.           |
-| GET    | `/api/rounds`     | Retrieve a history of all rounds played.     |
-| GET    | `/api/statistics` | Retrieve game statistics (wins, losses, etc.)|
-| DELETE | `/api/rounds`     | Clear the entire game history.               |
+```powershell
+mvnw.cmd spring-boot:run
+```
 
-## Example Requests & Responses
+The API is served at:
 
-### 1. Play a Round
-**Request:**
+```text
+http://localhost:8080
+```
+
+## API reference
+
+| Method | Endpoint | Success status | Description |
+|---|---|---:|---|
+| `POST` | `/api/rounds` | `201 Created` | Play and persist a new round |
+| `GET` | `/api/rounds` | `200 OK` | Return all rounds, newest first |
+| `GET` | `/api/statistics` | `200 OK` | Return aggregate game statistics |
+| `DELETE` | `/api/rounds` | `204 No Content` | Delete the complete game history |
+
+Valid move values are `ROCK`, `PAPER`, and `SCISSORS`.
+
+### Play a round
+
 ```bash
 curl -X POST http://localhost:8080/api/rounds \
   -H "Content-Type: application/json" \
   -d '{"playerMove":"ROCK"}'
 ```
-**Response (201 Created):**
+
+Example response:
+
 ```json
 {
   "id": 1,
   "playerMove": "ROCK",
   "computerMove": "SCISSORS",
   "result": "WIN",
-  "playedAt": "2023-10-27T10:00:00Z"
+  "playedAt": "2026-06-25T12:00:00Z"
 }
 ```
 
-### 2. Get History
-**Request:**
+The `result` value is always one of `WIN`, `LOSS`, or `DRAW`, from the player's perspective.
+
+### Get round history
+
 ```bash
 curl http://localhost:8080/api/rounds
 ```
-**Response (200 OK):**
+
+Example response:
+
 ```json
 [
   {
@@ -88,17 +107,19 @@ curl http://localhost:8080/api/rounds
     "playerMove": "ROCK",
     "computerMove": "SCISSORS",
     "result": "WIN",
-    "playedAt": "2023-10-27T10:00:00Z"
+    "playedAt": "2026-06-25T12:00:00Z"
   }
 ]
 ```
 
-### 3. Get Statistics
-**Request:**
+### Get statistics
+
 ```bash
 curl http://localhost:8080/api/statistics
 ```
-**Response (200 OK):**
+
+Example response:
+
 ```json
 {
   "totalRounds": 1,
@@ -109,9 +130,95 @@ curl http://localhost:8080/api/statistics
 }
 ```
 
-### 4. Reset Game
-**Request:**
+`winRate` is expressed as a percentage and rounded to two decimal places.
+
+### Reset the game
+
 ```bash
 curl -X DELETE http://localhost:8080/api/rounds
 ```
-**Response (204 No Content):** No body returned.
+
+A successful reset returns `204 No Content` with no response body.
+
+## Validation errors
+
+A missing move returns `400 Bad Request`:
+
+```json
+{
+  "timestamp": "2026-06-25T12:00:00Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "playerMove must be provided",
+  "path": "/api/rounds"
+}
+```
+
+An unsupported move returns the message:
+
+```text
+Invalid move. Allowed values are ROCK, PAPER and SCISSORS
+```
+
+## Database
+
+Development uses a file-based H2 database so game history survives application restarts.
+
+| Setting | Value |
+|---|---|
+| JDBC URL | `jdbc:h2:file:./data/rpsdb` |
+| Username | `sa` |
+| Password | blank |
+| Schema strategy | `update` |
+| H2 console | `http://localhost:8080/h2-console` |
+
+Database files are created under `./data` and excluded from version control.
+
+Tests use the `test` Spring profile and an isolated in-memory database:
+
+```text
+jdbc:h2:mem:rpstestdb
+```
+
+## Run tests
+
+On macOS or Linux:
+
+```bash
+./mvnw test
+```
+
+On Windows:
+
+```powershell
+mvnw.cmd test
+```
+
+The suite includes:
+
+- All nine Rock Paper Scissors rule combinations
+- Service behavior for round creation, history, statistics, and reset
+- MVC endpoint status and response checks
+- Validation checks for missing and invalid moves
+- Spring application-context startup using the isolated test database
+
+## Architecture
+
+The backend follows a layered design:
+
+```text
+controller  -> HTTP endpoints and request validation
+service     -> game rules, orchestration, and statistics
+repository  -> Spring Data JPA persistence
+entity      -> database model
+dto         -> API request and response contracts
+model       -> move and result enums
+config      -> local CORS configuration
+exception   -> structured API error handling
+```
+
+`ComputerMoveGenerator` is represented by an interface and implemented by `RandomComputerMoveGenerator`, keeping random move generation replaceable and independently testable. Game outcome evaluation is isolated in `GameRules`.
+
+## Frontend integration
+
+During local development, start this backend on port `8080`, then start the companion Angular UI on port `4200`. The frontend proxies `/api` requests to this service, while the backend also permits the Angular development origin through CORS.
